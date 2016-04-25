@@ -33,7 +33,7 @@ global function RemoveCap residues
 endfunction
 
 function NeutralizeOXT atoms
-  local target = atoms | aName atoms == 'OXT';
+  local target = atoms | andE[aName atoms == 'OXT', rType aResidue atoms == 'amino'];
   aSetIon [target, 0];
   Add_H target;
 endfunction
