@@ -1,0 +1,15 @@
+global function ResetStyle[]
+  local res = Residues[];
+  rSetRibbonEnable [res, 1];
+
+  local lig = res | andE[rType res == 'none', not (rName res == 'HOH')];
+  aSetHidden [Atoms[], 1];
+  aSetHidden [rAtoms lig, 0];
+endfunction
+
+global function ShowResidue name
+  local res = Residues[];
+  local as = cat rAtoms (res | rName res == name);
+  local mask = (not aBackbone as and aName as <> 'H') or aName as == 'CA';
+  aSetHidden [as | mask, 0];
+endfunction

@@ -1,0 +1,66 @@
+function StructurePreparation;
+function Protonate3D;
+function MM;
+
+function RemoveACE residue
+  local atoms = (rAtoms residue)(1);
+  local bonds = cat aBonds atoms;
+  local term = bonds | aResidue bonds <> residue;
+  oDestroy residue;
+  Add_H term;
+  return term;
+endfunction
+
+function RemoveNME residue
+  local term = RemoveACE residue;
+
+  local bonds = (aBonds term)(1);
+  local added = bonds | aElement bonds == 'H';
+  aSetElement [added, 'O'];
+  aSetName [added, 'OXT'];
+  Add_H added;
+endfunction
+
+global function RemoveCap residues
+  local residue;
+  for residue in residues loop
+    if rName residue == 'ACE' then
+      RemoveACE residue;
+    elseif rName residue == 'NME' then
+      RemoveNME residue;
+    endif
+  endloop
+endfunction
+
+function NeutralizeOXT atoms
+  local target = atoms | aName atoms == 'OXT';
+  aSetIon [target, 0];
+  Add_H target;
+endfunction
+
+global function AutoPrep options
+  local atoms = Atoms[];
+
+  local constraintAtoms = aAtomicNumber atoms <> 1;
+
+  if options.tether === [] then
+    aSetFixed [atoms, constraintAtoms];
+  else
+    local a;
+    for a in atoms | constraintAtoms loop
+      aSetTether [a, aPos a, options.tether, 0, 0.25];
+    endloop
+  endif
+
+  StructurePreparation [batch_protonate3D: 0];
+
+  atoms = Atoms[];
+  Protonate3D [atoms, atoms, atoms, [], [], [rulefile: '$HOME/moe-config/dat/protonate3d-no-HIP.dat']];
+
+  RemoveCap Residues[];
+
+  atoms = Atoms[];
+  NeutralizeOXT atoms;
+
+  MM [];
+endfunction

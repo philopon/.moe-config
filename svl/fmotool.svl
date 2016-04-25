@@ -1,0 +1,30 @@
+function G_DetachMarker [bda, baa]
+    local posD = aPos bda;
+    local diff = aPos baa - posD;
+    local center = posD + 0.45 * diff;
+    local head = posD + 0.2 * diff;
+    local axis = head - center;
+    return G_Cap [0xffffff, center, axis, 0.8, 2];
+endfunction
+
+function testDrawCap [bda, baa]
+    local key = GCreate[];
+    GVertex cat [key, G_DetachMarker[bda, baa]];
+    return key;
+endfunction
+
+local function mget2 a
+  return app mget tr a;
+endfunction
+
+local function isCTerminal a
+  return aBonds a;
+endfunction
+
+function SplitProtein chain
+  local atoms = app rAtoms cResidues chain;
+  local CAs = apt mget2 [atoms, aName atoms == 'CA'];
+  local Cs = apt mget2 [atoms, aName atoms == 'C'];
+  // return apt tr [Cs, CAs];
+  return Cs;
+endfunction
