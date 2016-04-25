@@ -55,7 +55,7 @@ global function AutoPrep options
   StructurePreparation [batch_protonate3D: 0];
 
   atoms = Atoms[];
-  Protonate3D [atoms, atoms, atoms, [], [], [rulefile: '$HOME/moe-config/dat/protonate3d-no-HIP.dat']];
+  Protonate3D [atoms, atoms, atoms, [], [], [rulefile: '$HOME/moe/protonate3d-no-HIP.dat']];
 
   RemoveCap Residues[];
 
