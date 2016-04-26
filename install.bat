@@ -7,8 +7,8 @@ if exist %DEST% (
     cd %DEST%
     git pull
 ) else (
-    git clone "https://github.com/philopon/.moe-config.git" %DEST%
-    cd %DEST%
+    cd %UserProfile%
+    git clone "https://github.com/philopon/.moe-config.git"
 )
 
 cd %UserProfile%
