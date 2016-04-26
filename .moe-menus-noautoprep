@@ -1,0 +1,14 @@
+MENU APPEND "RightButtonBar"
+    SEPARATOR
+    "Reset" exec "ResetStyle []"
+
+    "Show" MENU "Show"
+      "All" exec "ResetStyle []; ShowResidue 'HIS'; ShowResidue 'ASP'; ShowResidue 'ASN'; ShowResidue 'GLU'; ShowResidue 'GLN'"
+      SEPARATOR
+      "His" exec "ResetStyle []; ShowResidue 'HIS'"
+      "Asp/Asn" exec "ResetStyle []; ShowResidue 'ASP'; ShowResidue 'ASN'"
+      "Glu/Gln" exec "ResetStyle []; ShowResidue 'GLU'; ShowResidue 'GLN'"
+    ENDMENU
+
+    "UnCap" exec "RemoveCap SelectedResidues[]"
+ENDMENU
