@@ -1,0 +1,480 @@
+function pro_Contacts;
+
+const TEMPLATE_BASE = '$HOME/.moe-config/dat';
+
+local function G_DetachMarker [color, bda, baa]
+    local posD = aPos bda;
+    local diff = aPos baa - posD;
+    local center = posD + 0.3 * diff;
+    local head = posD + 0.1 * diff;
+    local axis = head - center;
+    return G_Cap [color, center, axis, 0.8, 2];
+endfunction
+
+local function mCTerminalC atoms
+  function sum a
+    if length a == 0 then
+      return 0;
+    endif
+
+    return app add a;
+  endfunction
+
+  function sum2 a
+    return app sum a;
+  endfunction
+
+  local elems = aElement app aBonds atoms;
+  local nitrogens = cat app sum2 [elems == 'N'];
+  local oxygens = cat app sum2 [elems == 'O'];
+
+  return oxygens >= 2 and nitrogens == 0;
+endfunction
+
+global function FMOSplitProtein chains
+  chains = chains | app andE (rType cResidues chains == 'amino');
+  local atoms = rAtoms (cat cResidues chains);
+  local CAs = apt mget [atoms, aName atoms == 'CA'];
+  local Cs = apt mget [atoms, aName atoms == 'C'];
+
+  function addLabel [bda, baa]
+    return [bda: bda, baa: baa];
+  endfunction
+
+  local bonds = app cat tr [CAs, Cs] | not mCTerminalC Cs;
+  bonds = bonds | app length bonds == 2;
+  return app addLabel bonds;
+endfunction
+
+local function RemoveByType [list, type]
+  local keys = apt tagpeek [*list, 'key'];
+  if isnull type then
+    GDestroy keys;
+    *list = [];
+  else
+    local types = apt tagpeek [*list, 'type'];
+    GDestroy [keys | types == type];
+    *list = *list | types <> type;
+  endif
+endfunction
+
+local function ToDetachedBondString [i, bond]
+  local bdaRes = aResidue bond.bda;
+  local baaRes = aResidue bond.baa;
+
+  local resName;
+  if bdaRes <> baaRes then
+    resName = tok_cat [rNumber bdaRes, '->', rNumber baaRes];
+  else
+    resName = tok_cat [rName bdaRes, totok rNumber bdaRes];
+  endif
+
+  return tok_cat [
+    totok i, '\t', totok toupper tochar bond.type, '\t', resName, '\t',
+    totok aNumber bond.bda, ' ', aName bond.bda, '\t',
+    totok aNumber bond.baa, ' ', aName bond.baa
+  ];
+endfunction
+
+
+local function Cleanup [lock, detachedBonds, focusedDish]
+  dvar_lock app dvar_open [lock, detachedBonds, focusedDish];
+
+  GDestroy [*focusedDish];
+  RemoveByType [detachedBonds];
+  ViewRotationCenter 0;
+
+  dvar_unlock [lock, detachedBonds, focusedDish];
+  dvar_close [lock, detachedBonds, focusedDish];
+  exit [];
+endfunction
+
+const GENERATE_PANEL = [
+  title: 'Open File',
+  FSB: [
+    name: 'fsb',
+    resizeH: 1,
+    extendH: 1,
+    resizeV: 1,
+    extendV: 1,
+    mode: 'saveAs'
+  ]
+];
+
+local function GeneratePanelPromptTask [lock]
+  local result = WindowPrompt [GENERATE_PANEL];
+  *lock = result;
+endfunction
+
+local function GeneratePanelPrompt []
+  local lock = dvar_open [];
+  task_call [#GeneratePanelPromptTask, [lock], [master: 'parent']];
+  local result = *lock;
+  dvar_close lock;
+  return result.fsb;
+endfunction
+
+const PANEL = [
+  name: 'FMOTool',
+  title: 'FMO Tool',
+  text: 'Generate',
+  Vbox: [
+    Hbox: [
+      Label: [
+        text: 'Bonds',
+        extendH: 1,
+        resizeH: 1
+      ],
+      Button: [
+        name: 'SplitProtein',
+        text: 'split protein'
+      ],
+      Button: [
+        name: 'AddBond',
+        text: '+',
+        font: 'largeFixedBold'
+      ],
+      Button: [
+        name: 'RemoveBond',
+        text: '-',
+        font: 'largeFixedBold',
+        foreground: 'red'
+      ]
+    ],
+    Listbox: [
+      name: 'DetachedBondList',
+      header: '#{+}\tT\tResidue{+}\tBDA{+}\tBAA{+}',
+      onTrigger: 'return',
+      extendV: 1,
+      resizeV: 1,
+      extendH: 1,
+      resizeH: 1,
+      type: 'int',
+      len: 20,
+      width: 32
+    ],
+    Hbox: [
+      Label: [text: 'template:'],
+      Option: [
+        name: 'TemplateSelector',
+        extendH: 1,
+        resizeH: 1
+      ]
+    ]
+  ]
+];
+
+
+local function BondPickerTask [bond]
+  local wkey = WindowCreate [
+    name: 'PickAtom',
+    mode: 'pickAtom',
+    title: 'pick BDA...',
+    location: 'MOE'
+  ];
+
+  local BDA = (first WindowWait wkey).PickAtom;
+
+  local neighbors = cat aBonds BDA;
+
+  WindowSetAttr [wkey, [PickAtom: [title: 'pick BAA...']]];
+  local BAA = (first WindowWait wkey).PickAtom;
+  if orE (BAA == neighbors) then
+    *bond = [bda: BDA, baa: BAA];
+  endif
+endfunction
+
+local function BondPicker []
+  local lock = dvar_open [];
+  task_call [#BondPickerTask, [lock], [master: 'parent']];
+  lock = dvar_open lock;
+  return *lock;
+endfunction
+
+local function FMOSplitFragments [atoms, splits]
+  local split, graph = BondGraph atoms;
+  for split in splits loop
+    graph = graph_ecut [graph, [aNumber split.baa, aNumber split.bda]];
+  endloop
+  return graph_ccomponent graph;
+endfunction
+
+
+local function writeLF [filenum]
+  fwriteb[filenum, 'char', "\n"];
+endfunction
+
+
+local function WriteXYZ [filenum, atom]
+  local n = aNumber atom;
+  local e = aElement atom;
+  if length string e <> 2 then
+    e = tok_cat [e, ' '];
+  endif
+  local [x, y, z] = aPos atom;
+
+  fwrite[filenum, '  {n:5} {} 1 {f12.7} {f12.7} {f12.7} 1', n, e, x, y, z];
+  writeLF[filenum];
+endfunction
+
+local function WriteFRAGMENT [filenum, atoms, ifragments, splits]
+  local i, fragments = [], N = max ifragments;
+
+  for i = 1, N loop
+    fragments = cat [fragments, [atoms | ifragments == i]];
+  endloop
+
+  local split, splitPairs = [], baas = igen[N] * 0, bdas = baas;
+  for split in splits loop
+    baas = baas + app add apt eqE [fragments, split.baa];
+    bdas = bdas + app add apt eqE [fragments, split.bda];
+    splitPairs = cat [splitPairs, [[aNumber split.bda, aNumber split.baa]]];
+  endloop
+
+  for i = 1, N loop
+    fwrite[filenum, '{n:8}', length fragments(i)];
+    if i <> N and mod[i, 10] == 0 then
+      writeLF[filenum];
+    endif
+  endloop
+  writeLF[filenum];
+
+  local charges = app add aFCharge fragments - baas + bdas;
+  for i = 1, N loop
+    fwrite[filenum, '{n:8}', charges(i)];
+    if i <> N and mod[i, 10] == 0 then
+      writeLF[filenum];
+    endif
+  endloop
+  writeLF[filenum];
+
+  for i = 1, N loop
+    fwrite[filenum, '{n:8}', baas(i)];
+    if i <> N and mod[i, 10] == 0 then
+      writeLF[filenum];
+    endif
+  endloop
+  writeLF[filenum];
+
+  local j, M, fragment;
+  for i = 1, N loop
+    fragment = fragments(i);
+    M = length fragment;
+    for j = 1, M loop
+      fwrite[filenum, '{n:8}', aNumber fragment(j)];
+      if j <> M and mod[j, 10] == 0 then
+        writeLF[filenum];
+      endif
+    endloop
+    writeLF[filenum];
+  endloop
+
+  for [i, j] in sort splitPairs loop
+    fwrite[filenum, '{n:8}{n:8}', i, j];
+    writeLF[filenum];
+  endloop
+endfunction
+
+local function GetLigandCharge residues
+  residues = residues | andE [rType residues <> 'amino', rName residues <> 'HOH'];
+  return uniq tr [rName residues, app add aFCharge rAtoms residues];
+endfunction
+
+global function FMOWriteAjf [filenum, templatePath, atoms, splits]
+  local ifragments = FMOSplitFragments[atoms, splits];
+  local line, template = fopenr templatePath;
+  while length (line = freadb [template, 'lineLF', 1]) loop
+    line = app token line;
+    apt fwrite [filenum, line];
+    writeLF[filenum];
+
+    if not isnull findmatch[['*&[Cc][Nn][Tt][Rr][Ll]*'], line] then
+      fwrite[filenum, '  Natom={}', length atoms];
+      writeLF[filenum];
+      fwrite[filenum, '  Charge={}', add aFCharge atoms];
+      writeLF[filenum];
+
+    elseif not isnull findmatch[['*&[Ff][Mm][Oo][Cc][Nn][Tt][Rr][Ll]*'], line] then
+      fwrite[filenum, '  NF={}', max ifragments];
+      writeLF[filenum];
+
+      fwrite[filenum, '  LigandCharge=\''];
+      local iLig, ligName, ligCharge, ligands = GetLigandCharge uniq aResidue atoms, NLig = length ligands;
+      for iLig = 1, NLig loop
+        [ligName, ligCharge] = ligands(iLig);
+        fwrite[filenum, '{}={}', ligName, ligCharge];
+        if iLig <> NLig then
+          fwrite[filenum, ','];
+        endif
+      endloop
+      fwrite[filenum, '\''];
+      writeLF[filenum];
+    endif
+  endloop
+
+  fwrite[filenum, '&XYZ'];
+  writeLF[filenum];
+  apt WriteXYZ [filenum, atoms];
+  fwrite[filenum, '/'];
+  writeLF[filenum];
+  fwrite[filenum, '&FRAGMENT'];
+  writeLF[filenum];
+  WriteFRAGMENT[filenum, atoms, ifragments, splits];
+  fwrite[filenum, '/'];
+  writeLF[filenum];
+endfunction
+
+
+global function FMOInterface []
+  local lock = dvar_open 'FMOTool';
+  dvar_lock lock;
+
+  if isnull *lock then
+    *lock = 1;
+  else
+    return;
+  endif
+
+  local detachedBonds = dvar_open [];
+  dvar_lock detachedBonds;
+  *detachedBonds = [];
+
+  local focusedDish = dvar_open [];
+  dvar_lock focusedDish;
+  *focusedDish = GCreate[];
+
+  local GenerateWindowLock = dvar_open [];
+  dvar_lock GenerateWindowLock;
+  *GenerateWindowLock = [];
+
+  local wkey = WindowCreate PANEL;
+
+  task_call [#Cleanup, [lock, detachedBonds, focusedDish], [master: 'none', creator: 'detach']];
+
+  local highlightedBond = [];
+  local oldDetachedBond = [];
+  local target;
+
+  WindowSetAttr [wkey, [
+    TemplateSelector: [text: ftail fbase flist [TEMPLATE_BASE, '*.ajf']]
+  ]];
+
+  WindowShow wkey;
+
+  function AddToList [add, list]
+    local p = *list;
+    if isnull p then
+      *list = add;
+    else
+      *list = cat [add, p];
+    endif
+  endfunction
+
+  function UpdateLists []
+    WindowSetAttr [wkey, [
+      DetachedBondList: [text: apt ToDetachedBondString [igen length *detachedBonds, *detachedBonds]]
+    ]];
+  endfunction
+
+  function CreateBond [target, type, color]
+    target.key = GCreate[];
+    target.type = type;
+    GVertex cat [target.key, G_DetachMarker [color, target.bda, target.baa]];
+    return target;
+  endfunction
+
+  function HighlightBond [index, highlightOnly]
+    local db = *detachedBonds;
+    local target = db(index);
+
+    GSetVisible [target.key, 0];
+
+    if isnull highlightOnly then
+      View [target.bda, target.baa];
+      ViewRotationCenter target.bda;
+    endif
+
+    GClearVertexData *focusedDish;
+    GVertex cat [*focusedDish, G_DetachMarker [0xffff00, target.bda, target.baa]];
+
+    highlightedBond = target;
+  endfunction
+
+  function UnHighlightBond []
+    if isnull highlightedBond then
+      return;
+    endif
+
+    GSetVisible [highlightedBond.key, 1];
+    GClearVertexData *focusedDish;
+    ViewRotationCenter 0;
+    highlightedBond = [];
+  endfunction
+
+  function RemoveBondByIndex [index]
+    local db = *detachedBonds;
+    local toDel = db(index);
+    GDestroy toDel.key;
+    *detachedBonds = db | igen length db <> index;
+  endfunction
+
+  loop
+    local [vals, trigger] = WindowWait wkey;
+
+    UnHighlightBond[];
+
+    if trigger === 'SplitProtein' then
+      RemoveByType [detachedBonds, 'protein'];
+      GClearVertexData *focusedDish;
+
+      AddToList [apt CreateBond [FMOSplitProtein Chains[], 'protein', 0xffffff], detachedBonds];
+
+      UpdateLists[];
+      continue;
+
+    elseif trigger === 'DetachedBondList' then
+      target = first vals.DetachedBondList;
+      if oldDetachedBond === target then
+        HighlightBond[target];
+      else
+        HighlightBond[target, 1];
+      endif
+      oldDetachedBond = target;
+      continue;
+
+    elseif trigger === 'AddBond' then
+      target = BondPicker[];
+      if isnull target then
+        continue;
+      endif
+
+      AddToList [[CreateBond [target, 'manual', 0x0df2f2]], detachedBonds];
+      UpdateLists[];
+      continue;
+
+    elseif trigger === 'RemoveBond' then
+      target = first vals.DetachedBondList;
+      if not isnull target then
+        RemoveBondByIndex target;
+      endif
+      UpdateLists[];
+
+      continue;
+
+    elseif trigger === 'FMOTool' then
+      local output = GeneratePanelPrompt[];
+      if isnull output then
+        continue;
+      endif
+
+      output = fopenw output;
+      local template = fcat[TEMPLATE_BASE, tok_cat[vals.TemplateSelector, '.ajf']];
+      FMOWriteAjf [output, template, Atoms[], *detachedBonds];
+      fclose output;
+      break;
+    endif
+
+  print [trigger, vals];
+  endloop
+
+endfunction

@@ -1,5 +1,7 @@
 MENU APPEND "RightButtonBar"
     SEPARATOR
+    "FMO Tool" exec "FMOInterface[]"
+    SEPARATOR
     "Reset" exec "ResetStyle []"
 
     "Show" MENU "Show"
