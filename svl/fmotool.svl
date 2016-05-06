@@ -76,6 +76,27 @@ local function ToDetachedBondString [i, bond]
   ];
 endfunction
 
+global function GetAO_631Gd atoms
+  local an = aAtomicNumber atoms;
+  local factors = [
+    [2,0,0,0],
+    [3,2,1,0],
+    [4,3,1,0],
+    [5,4,1,0],
+    [5,4,2,1],
+    [5,4,3,0]
+  ];
+  factors = app add apt mul [factors, [[1, 3, 6, 10]]];
+
+  return add (factors * app add [
+    an <= 2,
+    2 < an and an <= 10,
+    10 < an and an <= 18,
+    18 < an and an <= 20,
+    20 < an and an <= 30,
+    30 < an and an <= 36
+  ]);
+endfunction
 
 local function ToFragmentString [i, fragment]
   local counter = [], N, res;
@@ -97,7 +118,7 @@ local function ToFragmentString [i, fragment]
     endif
   endloop
 
-  return twrite['{}\t{}\t{}', i, resName, length fragment];
+  return twrite['{}\t{}\t{}\t{}', i, resName, length fragment, GetAO_631Gd fragment];
 endfunction
 
 
@@ -182,7 +203,7 @@ const PANEL = [
     ],
     Listbox: [
       name: 'FragmentList',
-      header: '#{+}\tResidue{+}\tnAtom\tAO',
+      header: '#{+}\tResidue{+}\tnAtom\tAO(6-31G*)',
       onTrigger: 'return',
       extendV: 1,
       resizeV: 1,
