@@ -1,5 +1,3 @@
-function pro_Contacts;
-
 const TEMPLATE_BASE = '$HOME/.moe-config/dat';
 
 local function G_DetachMarker [color, bda, baa]
@@ -71,8 +69,8 @@ local function ToDetachedBondString [i, bond]
 
   return twrite['{}\t{}\t{}\t{} {}\t{} {}',
     i, totok toupper tochar bond.type, resName,
-    totok aNumber bond.bda, ' ', aName bond.bda,
-    totok aNumber bond.baa, ' ', aName bond.baa
+    totok aNumber bond.bda, aName bond.bda,
+    totok aNumber bond.baa, aName bond.baa
   ];
 endfunction
 
@@ -188,30 +186,46 @@ const PANEL = [
     ],
     Listbox: [
       name: 'DetachedBondList',
-      header: '#{+}\tT\tResidue{+}\tBDA{+}\tBAA{+}',
+      header: '#{+4n}\tT{-1t}\tRes.{+6t}\tBDA{+7t}\tBAA{+7t}',
+      headerBubbleHelp: tok_cat [
+        '#: index\n',
+        'T: split type\n',
+        '   P: split protein\n',
+        '   M: manual\n',
+        'Res.: residue name\n',
+        'BDA: bond detached atom\n',
+        'BAA: bond attached atom'],
       onTrigger: 'return',
       extendV: 1,
       resizeV: 1,
       extendH: 1,
       resizeH: 1,
       type: 'int',
+      sortEnable: 1,
       len: 20,
-      width: 32
+      width: 37
     ],
     Hbox: [
       Label: [text: 'Fragments']
     ],
     Listbox: [
       name: 'FragmentList',
-      header: '#{+}\tResidue{+}\tnAtom\tAO(6-31G*)',
+      header: '#{+4n}\tRes.{+4t}\tnA{+3n}\tAO{+3n}',
+      headerBubbleHelp: tok_cat [
+        '#: index\n',
+        'Res.: majour residue name\n',
+        'nA: fragment atom count\n',
+        'AO: fragment atomic orbital count (6-31G*)'
+      ],
       onTrigger: 'return',
       extendV: 1,
       resizeV: 1,
       extendH: 1,
       resizeH: 1,
       type: 'int',
+      sortEnable: 1,
       len: 20,
-      width: 32
+      width: 37
     ],
     Hbox: [
       Label: [text: 'template:'],
