@@ -427,8 +427,19 @@ global function FMOInterface []
   local oldDetachedBond = [];
   local target;
 
+  function GetTemplates[]
+    local templates = ftail fbase flist [TEMPLATE_BASE, '*.ajf'];
+    local mSample = templates <> 'sample';
+
+    if orE mSample then
+      return templates | mSample;
+    else
+      return templates;
+    endif
+  endfunction
+
   WindowSetAttr [wkey, [
-    TemplateSelector: [text: ftail fbase flist [TEMPLATE_BASE, '*.ajf']]
+    TemplateSelector: [text: GetTemplates[]]
   ]];
 
   WindowShow wkey;
