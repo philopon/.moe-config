@@ -133,28 +133,64 @@ local function Cleanup [lock, detachedBonds, fragments, focusedDish, GenerateWin
 endfunction
 
 const GENERATE_PANEL = [
-  title: 'Open File',
+  title: 'Save Ajf File',
+  text: ['OK', 'Cancel'],
+  onTrigger: ['return', 'exit'],
   FSB: [
     name: 'fsb',
     resizeH: 1,
     extendH: 1,
     resizeV: 1,
     extendV: 1,
-    mode: 'saveAs'
+    filter: '*.ajf',
+    mode: 'none'
+  ],
+  Checkbox: [
+    name: 'UseXYZ',
+    text: 'Use XYZ namelist instead of ReadGeom'
   ]
 ];
 
+local function prettyExists file
+  return tok_cat ['"', file, '"\n\n'];
+endfunction
+
 local function GeneratePanelPromptTask [lock]
-  local result = WindowPrompt [GENERATE_PANEL];
-  *lock = result;
+  local wkey = WindowCreate GENERATE_PANEL;
+  WindowShow wkey;
+  
+  loop
+    local vals = (WindowWait wkey)(1);
+
+    if ftype vals.fsb == 'dir' then
+      Warning 'Please specify ajf file name.';
+      continue;
+    endif
+
+    local exts, base = fbase vals.fsb;
+    if vals.UseXYZ then
+      exts = ['.ajf'];
+    else
+      exts = ['.ajf', '.pdb'];
+    endif
+    local writeTo = apt tok_cat [[base], exts];
+
+    if andE (ftype writeTo == '') then
+      break;
+    else
+      local exists = app prettyExists (writeTo | ftype writeTo <> '');
+      if YesNo tok_cat cat [exists, 'File already exists. overwrite ?'] then
+        break;
+      endif
+    endif
+  endloop
+  *lock = [base, vals.UseXYZ];
 endfunction
 
 local function GeneratePanelPrompt []
-  local lock = dvar_open [];
+  local basename, useXYZ, writeTo, exts, lock = dvar_open [];
   task_call [#GeneratePanelPromptTask, [lock], [master: 'parent']];
-  local result = *lock;
-  dvar_close lock;
-  return result.fsb;
+  return *lock;
 endfunction
 
 const PANEL = [
@@ -285,6 +321,75 @@ local function writeLF [filenum]
 endfunction
 
 
+local function AbinitPDBLine [i, atom]
+  local chain = aChain atom;
+  local res = aResidue atom;
+  local sec = 'ATOM';
+  if rType res == 'none' then
+    sec = 'HETATM';
+  endif
+
+  local aname = string aName atom;
+  local elem  = string aElement atom;
+
+  local rename = 0;
+  if sec == 'HETATM' and length elem == 1 and length aname > 1 then
+    if orE [
+      elem == "H" and orE (aname(2) == "efgsEFGS"),
+      elem == "B" and orE (aname(2) == "eraihkERAIHK"),
+      elem == "C" and orE (aname(2) == "laroudsnmfLAROUDSNMF"),
+      elem == "N" and orE (aname(2) == "eaibdpoEAIBDPO"),
+      elem == "O" and orE (aname(2) == "sS"),
+      elem == "F" and orE (aname(2) == "erlmERLM"),
+      elem == "P" and orE (aname(2) == "dtbormauDTBORMAU"),
+      elem == "S" and orE (aname(2) == "icernbgmICERNBGM"),
+      elem == "K" and orE (aname(2) == "rR"),
+      elem == "I" and orE (aname(2) == "nrNR")
+    ] then
+      rename = 1;
+    endif
+  endif
+
+  local annot = '';
+  if rename then
+    annot = token cat ["renamed from ", aname];
+    aname(2) = "X";
+  endif
+
+  if length elem == 1 then
+    if length aname == 1 then
+      aname = [" ", aname];
+    elseif (length aname == 2 or length aname == 3) and elem == aname(1) then
+      aname = cat [" ", aname];
+    endif
+  endif
+
+  local [x, y, z] = aPos atom;
+
+  local charge = '', chg = aFCharge atom;
+  if chg > 0 then
+    charge = tok_cat [totok chg, '+'];
+  elseif chg < 0 then
+    charge = tok_cat [totok abs chg, '-'];
+  endif
+
+  return swrite [
+    '{t:-6}{n:5} {t:-4} {t:3}  {n:4}{}   {f8.3}{f8.3}{f8.3}{f6.2}{f6.2}          {t:2}{t:2} {}',
+    sec, i, token aname, rName res,
+    rNumber res, rINS res, x, y, z,
+    aOccupancy atom, aTempFactor atom, aElement atom, charge, annot
+  ];
+endfunction
+
+global function AbinitPDB [path, atoms]
+  local line, file = fopenw(path);
+  for line in apt AbinitPDBLine [igen length atoms, atoms] loop
+    fwrite[file, token line];
+    writeLF[file];
+  endloop
+  fclose(file);
+endfunction
+
 local function WriteXYZ [filenum, atom]
   local n = aNumber atom;
   local e = aElement atom;
@@ -361,49 +466,64 @@ local function GetLigandCharge residues
   return uniq tr [rName residues, app add aFCharge rAtoms residues];
 endfunction
 
-global function FMOWriteAjf [filenum, templatePath, atoms, splits]
+global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
+  local ajf = fopenw tok_cat [base, '.ajf'];
   local fragments = FMOSplitFragments[atoms, splits];
   local line, template = fopenr templatePath;
 
   while length (line = freadb [template, 'lineLF', 1]) loop
     line = app token line;
-    apt fwrite [filenum, line];
-    writeLF[filenum];
+    apt fwrite [ajf, line];
+    writeLF[ajf];
 
     if not isnull findmatch[['*&[Cc][Nn][Tt][Rr][Ll]*'], line] then
-      fwrite[filenum, '  Natom={}', length atoms];
-      writeLF[filenum];
-      fwrite[filenum, '  Charge={}', add aFCharge atoms];
-      writeLF[filenum];
+      if useXYZ then
+        fwrite[ajf, '  Natom={}', length atoms];
+      else
+        fwrite[ajf, '  ReadGeom=\'{}\'', tok_cat [ftail base, '.pdb']];
+      endif
+      writeLF[ajf];
+      fwrite[ajf, '  Charge={}', add aFCharge atoms];
+      writeLF[ajf];
 
     elseif not isnull findmatch[['*&[Ff][Mm][Oo][Cc][Nn][Tt][Rr][Ll]*'], line] then
-      fwrite[filenum, '  NF={}', length fragments];
-      writeLF[filenum];
+      fwrite[ajf, '  NF={}', length fragments];
+      writeLF[ajf];
 
-      fwrite[filenum, '  LigandCharge=\''];
+      fwrite[ajf, '  LigandCharge=\''];
       local iLig, ligName, ligCharge, ligands = GetLigandCharge uniq aResidue atoms, NLig = length ligands;
       for iLig = 1, NLig loop
         [ligName, ligCharge] = ligands(iLig);
-        fwrite[filenum, '{}={}', ligName, ligCharge];
+        fwrite[ajf, '{}={}', ligName, ligCharge];
         if iLig <> NLig then
-          fwrite[filenum, ','];
+          fwrite[ajf, ','];
         endif
       endloop
-      fwrite[filenum, '\''];
-      writeLF[filenum];
+      fwrite[ajf, '\''];
+      writeLF[ajf];
     endif
   endloop
 
-  fwrite[filenum, '&XYZ'];
-  writeLF[filenum];
-  apt WriteXYZ [filenum, atoms];
-  fwrite[filenum, '/'];
-  writeLF[filenum];
-  fwrite[filenum, '&FRAGMENT'];
-  writeLF[filenum];
-  WriteFRAGMENT[filenum, fragments, splits];
-  fwrite[filenum, '/'];
-  writeLF[filenum];
+  if useXYZ then
+    fwrite[ajf, '&XYZ'];
+    writeLF[ajf];
+    apt WriteXYZ [ajf, atoms];
+    fwrite[ajf, '/'];
+    writeLF[ajf];
+  endif
+
+  fwrite[ajf, '&FRAGMENT'];
+  writeLF[ajf];
+  WriteFRAGMENT[ajf, fragments, splits];
+  fwrite[ajf, '/'];
+  writeLF[ajf];
+
+  fclose ajf;
+
+  if not useXYZ then
+    local pdb = tok_cat [base, '.pdb'];
+    AbinitPDB [pdb, atoms];
+  endif
 endfunction
 
 
@@ -567,11 +687,8 @@ global function FMOInterface []
         continue;
       endif
 
-      output = fopenw output;
       local template = fcat[TEMPLATE_BASE, tok_cat[vals.TemplateSelector, '.ajf']];
-      FMOWriteAjf [output, template, Atoms[], *detachedBonds];
-      fclose output;
-      break;
+      FMOWriteFiles [output(1), template, Atoms[], *detachedBonds, output(2)];
     endif
 
   endloop
