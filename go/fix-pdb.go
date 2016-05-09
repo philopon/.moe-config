@@ -62,14 +62,14 @@ func FixPDB(lines []string) {
 }
 
 func main() {
-	lines, err := LoadFile(os.Args[1])
+	lines, err := LoadFile(os.Getenv("INPUT_PDB"))
 	if err != nil {
 		panic(err)
 	}
 
 	FixPDB(lines)
 
-	out, err := os.Create(os.Args[2])
+	out, err := os.Create(os.Getenv("OUTPUT_PDB"))
 	if err != nil {
 		panic(err)
 	}
