@@ -74,7 +74,7 @@ local function ToDetachedBondString [i, bond]
   ];
 endfunction
 
-global function GetAO_631Gd atoms
+local function GetAO_631Gd atoms
   local an = aAtomicNumber atoms;
   local factors = [
     [2,0,0,0],
@@ -158,7 +158,7 @@ endfunction
 local function GeneratePanelPromptTask [lock]
   local wkey = WindowCreate GENERATE_PANEL;
   WindowShow wkey;
-  
+
   loop
     local vals = (WindowWait wkey)(1);
 
@@ -381,7 +381,7 @@ local function AbinitPDBLine [i, atom]
   ];
 endfunction
 
-global function AbinitPDB [path, atoms]
+local function AbinitPDB [path, atoms]
   local line, file = fopenw(path);
   for line in apt AbinitPDBLine [igen length atoms, atoms] loop
     fwrite[file, token line];
