@@ -2,7 +2,7 @@ function StructurePreparation;
 function Protonate3D;
 function MM;
 
-function RemoveACE residue
+local function RemoveACE residue
   local atoms = (rAtoms residue)(1);
   local bonds = cat aBonds atoms;
   local term = bonds | aResidue bonds <> residue;
@@ -11,7 +11,7 @@ function RemoveACE residue
   return term;
 endfunction
 
-function RemoveNME residue
+local function RemoveNME residue
   local term = RemoveACE residue;
 
   local bonds = (aBonds term)(1);
@@ -32,7 +32,7 @@ global function RemoveCap residues
   endloop
 endfunction
 
-function NeutralizeOXT atoms
+local function NeutralizeOXT atoms
   local target = atoms | andE[aName atoms == 'OXT', rType aResidue atoms == 'amino'];
   aSetIon [target, 0];
   Add_H target;
@@ -52,7 +52,12 @@ global function AutoPrep options
     endloop
   endif
 
-  StructurePreparation [batch_protonate3D: 0];
+  local sprOptions = [batch_protonate3D: 0];
+  if not isnull options.reportName then
+    sprOptions.reportName = options.reportName;
+  endif
+
+  StructurePreparation sprOptions;
 
   atoms = Atoms[];
   Protonate3D [atoms, atoms, atoms, [], [], [rulefile: '$HOME/.moe-config/dat/protonate3d-no-HIP.dat']];
@@ -62,5 +67,5 @@ global function AutoPrep options
   atoms = Atoms[];
   NeutralizeOXT atoms;
 
-  MM [];
+  MM [cg_maxit: 10000];
 endfunction
