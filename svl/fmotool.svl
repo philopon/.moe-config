@@ -385,11 +385,21 @@ local function AbinitPDBLine [i, atom]
 endfunction
 
 local function AbinitPDB [path, atoms]
-  local line, file = fopenw(path);
-  for line in apt AbinitPDBLine [igen length atoms, atoms] loop
+  local line, i, file = fopenw(path), oldChain = aChain atoms(1);
+  for i = 1, length atoms loop
+    local chain = aChain atoms(i);
+    if chain <> oldChain then
+      fwrite[file, 'TER'];
+      writeLF[file];
+    endif
+    oldChain = chain;
+
+    line = AbinitPDBLine [i, atoms(i)];
     fwrite[file, token line];
     writeLF[file];
   endloop
+  fwrite[file, 'TER']; writeLF[file];
+  fwrite[file, 'END']; writeLF[file];
   fclose(file);
 endfunction
 
