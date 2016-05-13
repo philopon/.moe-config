@@ -32,8 +32,18 @@ global function RemoveCap residues
   endloop
 endfunction
 
+local function aNeighborHeavyAtoms atoms
+  return app add (app aElement aBonds atoms <> 'H');
+endfunction
+
 local function NeutralizeOXT atoms
   local target = atoms | andE[aName atoms == 'OXT', rType aResidue atoms == 'amino'];
+  aSetIon [target, 0];
+  Add_H target;
+endfunction
+
+local function NeutralizeNXT atoms
+  local target = atoms | andE[aBackbone atoms, aElement atoms == 'N', aNeighborHeavyAtoms atoms == 1];
   aSetIon [target, 0];
   Add_H target;
 endfunction
@@ -64,8 +74,8 @@ global function AutoPrep options
 
   RemoveCap Residues[];
 
-  atoms = Atoms[];
-  NeutralizeOXT atoms;
+  NeutralizeOXT Atoms[];
+  NeutralizeNXT Atoms[];
 
   MM [cg_maxit: 10000];
 endfunction
