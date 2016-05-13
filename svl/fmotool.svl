@@ -376,10 +376,17 @@ local function AbinitPDBLine [i, atom]
     charge = tok_cat [totok abs chg, '-'];
   endif
 
+  local chainId = fieldsplit [string cName aChain atom, "."];
+  if length chainId == 2 and length chainId(2) == 1 then
+    chainId = token chainId(2);
+  else
+    chainId = ' ';
+  endif
+
   return swrite [
-    '{t:-6}{n:5} {t:-4} {t:3}  {n:4}{}   {f8.3}{f8.3}{f8.3}{f6.2}{f6.2}          {t:2}{t:2} {}',
+    '{t:-6}{n:5} {t:-4} {t:3} {}{n:4}{}    {f8.3}{f8.3}{f8.3}{f6.2}{f6.2}          {t:2}{t:2} {}',
     sec, i, token aname, rName res,
-    rNumber res, rINS res, x, y, z,
+    chainId, rNumber res, rINS res, x, y, z,
     aOccupancy atom, aTempFactor atom, aElement atom, charge, annot
   ];
 endfunction
