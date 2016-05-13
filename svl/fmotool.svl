@@ -302,11 +302,12 @@ local function BondPicker []
 endfunction
 
 local function FMOSplitFragments [atoms, splits]
-  local split, graph = BondGraph atoms;
+  local split, newSplits = [], graph = BondGraph atoms;
   for split in splits loop
     local baa = indexof [split.baa, atoms], bda = indexof [split.bda, atoms];
     if baa <> 0 and bda <> 0 then
       graph = graph_ecut [graph, [baa, bda]];
+      newSplits = append[newSplits, [baa: baa, bda: bda]];
     endif
   endloop
 
@@ -315,7 +316,7 @@ local function FMOSplitFragments [atoms, splits]
     fragments = cat [fragments, [atoms | ifragments == i]];
   endloop
 
-  return fragments;
+  return [fragments, newSplits];
 endfunction
 
 
@@ -426,7 +427,7 @@ local function elem [a, set]
   return orE (a == set);
 endfunction
 
-local function WriteFRAGMENT [filenum, fragments, splits]
+local function WriteFRAGMENT [filenum, atoms, fragments, splits]
   local split, i, N = length fragments, bdas = [];
   local fragment, splitPerFragments = [];
   for i = 1, N loop
@@ -464,7 +465,7 @@ local function WriteFRAGMENT [filenum, fragments, splits]
     fragment = fragments(i);
     M = length fragment;
     for j = 1, M loop
-      fwrite[filenum, '{n:8}', aNumber fragment(j)];
+      fwrite[filenum, '{n:8}', indexof[fragment(j), atoms]];
       if j <> M and mod[j, 10] == 0 then
         writeLF[filenum];
       endif
@@ -475,7 +476,7 @@ local function WriteFRAGMENT [filenum, fragments, splits]
   local bond;
   for splits in splitPerFragments loop
     for bond in splits loop
-      fwrite[filenum, '{n:8}{n:8}', aNumber bond.bda, aNumber bond.baa];
+      fwrite[filenum, '{n:8}{n:8}', indexof [bond.bda, atoms], indexof[bond.baa, atoms]];
       writeLF[filenum];
     endloop
   endloop
@@ -488,14 +489,13 @@ endfunction
 
 global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
   local ajf = fopenw tok_cat [base, '.ajf'];
-  local fragments = FMOSplitFragments[atoms, splits];
+  local [fragments, newSplits] = FMOSplitFragments[atoms, splits];
   local line, template = fopenr templatePath;
 
   if not useXYZ then
     local pdb = tok_cat [base, '.pdb'];
     AbinitPDB [pdb, atoms];
     pdb = flist [fpath pdb, ftail pdb];
-    print pdb;
   endif
 
   while length (line = freadb [template, 'lineLF', 1]) loop
@@ -541,7 +541,7 @@ global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
 
   fwrite[ajf, '&FRAGMENT'];
   writeLF[ajf];
-  WriteFRAGMENT[ajf, fragments, splits];
+  WriteFRAGMENT[ajf, atoms, fragments, splits];
   fwrite[ajf, '/'];
   writeLF[ajf];
 
@@ -610,7 +610,7 @@ global function FMOInterface []
   endfunction
 
   function UpdateLists []
-    *fragments = FMOSplitFragments[Atoms[], *detachedBonds];
+    *fragments = (FMOSplitFragments[Atoms[], *detachedBonds])(1);
 
     WindowSetAttr [wkey, [
       DetachedBondList: [text: apt ToDetachedBondString [igen length *detachedBonds, *detachedBonds]],
