@@ -471,6 +471,13 @@ global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
   local fragments = FMOSplitFragments[atoms, splits];
   local line, template = fopenr templatePath;
 
+  if not useXYZ then
+    local pdb = tok_cat [base, '.pdb'];
+    AbinitPDB [pdb, atoms];
+    pdb = flist [fpath pdb, ftail pdb];
+    print pdb;
+  endif
+
   while length (line = freadb [template, 'lineLF', 1]) loop
     line = app token line;
     apt fwrite [ajf, line];
@@ -480,7 +487,7 @@ global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
       if useXYZ then
         fwrite[ajf, '  Natom={}', length atoms];
       else
-        fwrite[ajf, '  ReadGeom=\'{}\'', tok_cat [ftail base, '.pdb']];
+        fwrite[ajf, '  ReadGeom=\'{}\'', ftail pdb];
       endif
       writeLF[ajf];
       fwrite[ajf, '  Charge={}', add aFCharge atoms];
@@ -519,11 +526,6 @@ global function FMOWriteFiles [base, templatePath, atoms, splits, useXYZ]
   writeLF[ajf];
 
   fclose ajf;
-
-  if not useXYZ then
-    local pdb = tok_cat [base, '.pdb'];
-    AbinitPDB [pdb, atoms];
-  endif
 endfunction
 
 
