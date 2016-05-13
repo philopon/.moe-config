@@ -304,7 +304,10 @@ endfunction
 local function FMOSplitFragments [atoms, splits]
   local split, graph = BondGraph atoms;
   for split in splits loop
-    graph = graph_ecut [graph, [aNumber split.baa, aNumber split.bda]];
+    local baa = indexof [split.baa, atoms], bda = indexof [split.bda, atoms];
+    if baa <> 0 and bda <> 0 then
+      graph = graph_ecut [graph, [baa, bda]];
+    endif
   endloop
 
   local i, fragments = [], ifragments = graph_ccomponent graph, N = max ifragments;
