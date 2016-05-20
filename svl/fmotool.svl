@@ -660,6 +660,7 @@ global function FMOInterface []
     *detachedBonds = db | igen length db <> index;
   endfunction
 
+  AddToList [apt CreateBond [FMOSplitProtein Chains[], 'protein', 0xffffff], detachedBonds];
   UpdateLists[];
   loop
     local [vals, trigger] = WindowWait wkey;
