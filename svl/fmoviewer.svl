@@ -1,0 +1,213 @@
+function Read_Prompt;
+function Read_ProcessStandardOptions;
+function Read_Return;
+
+function AutoConnectFromPosition;
+function AutoTypeFromPosition;
+
+
+local function freadlines [file, format, n];
+  return cat apt get [apt sread[freadb[file, 'line', n], format], 1];
+endfunction
+
+local function fparse_cpf42 file
+  local [natoms, nfrags] = cat freadlines [file, '{n:5}{n:5}\n', 1];
+  local npairs = nfrags * (nfrags - 1) / 2;
+
+  local atoms = freadlines [file, '{n:5} {t:2} {t:4} {t:3} {n:4} {n:4} {n:12*3}{n:12*6}\n', natoms];
+
+  local FORMAT_n5_16s = rep['{n:5*16}\n', floor (nfrags / 16)], nfrags_mod16 = mod [nfrags, 16];
+  if nfrags_mod16 <> 0 then
+    FORMAT_n5_16s = cat [FORMAT_n5_16s, tok_cat ['{n:5*', totok [mod [nfrags, 16]], '}\n']];
+  endif
+
+  local electrons = cat cat freadlines [file, FORMAT_n5_16s, length FORMAT_n5_16s];
+  local bond_frags = cat cat freadlines [file, FORMAT_n5_16s, length FORMAT_n5_16s];
+
+  local bond_frag, bond_pairs;
+  for bond_frag in bond_frags loop
+    bond_pairs = append [bond_pairs, freadlines[file, '{n:5}{n:5}\n', bond_frag]];
+  endloop
+
+  local distances = cat freadlines[file, '{n:*3}\n', npairs];
+
+  local dipoles = cat freadlines [file, '{n:*6}\n', nfrags];
+
+  local [basis, estate, method] = freadlines[file, '{t}\n', 3];
+
+  local params = cat cat freadlines[file, '{n:*3}\n', 1];
+
+  local system_energy = freadlines[file, '{n}\n', 3];
+
+  local monomers = cat freadlines[file, '{n:24*4}{n:12*2}', nfrags];
+
+  local dimers = cat freadlines [file, '{n:24*12}\n', npairs];
+
+  return [
+    natoms: natoms,
+    nfrags: nfrags,
+    atoms: atoms,
+
+    electrons: electrons,
+    bond_frags: bond_frags,
+    bond_pairs: bond_pairs,
+
+    distances: distances,
+    dipoles: dipoles,
+
+    basis: basis,
+    estate: estate,
+    method: method,
+    params: params,
+
+    energy: system_energy,
+    monomers: monomers,
+    dimers: dimers
+  ];
+endfunction
+
+
+function fparse_cpf file
+  local [version, comment] = cat freadlines [file, '{G w=``}CPF Ver.{t:3} {t}\n', 1];
+  if version == '4.2' then
+    return fparse_cpf42 file;
+  endif
+  return;
+endfunction
+
+const AMINO_ACIDS = [
+  'ALA', 'ARG', 'ASN', 'ASP', 'CYS',
+  'GLU', 'GLN', 'GLY', 'HIS', 'ILE',
+  'LEU', 'LYS', 'MET', 'PHE', 'PRO',
+  'SER', 'THR', 'TRP', 'TYR', 'VAL'
+];
+
+function convert_to_mol data
+  local [aindex, elements, names, resns, resis, fragis, positions, charges] = tr data.atoms;
+  positions = tr positions;
+  charges = tr charges;
+
+  local xbond = AutoConnectFromPosition [elements, positions];
+  local [ion, geom, hintlp] = AutoTypeFromPosition
+    [elements, positions, xbond, []];
+
+  function assign_backbone [resn, name]
+    name = string name;
+    name = token (name | name <> " ");
+    return add (resn == AMINO_ACIDS) and add (name == ['N','CA','HA','C','O']);
+  endfunction
+
+  // atoms
+  local atoms = [
+    elements,
+    ion,
+    geom,
+    rep [0, data.natoms], // chirality
+    hintlp,
+    xbond,
+    charges(1) + charges(2),
+    names,
+    apt assign_backbone [resns, names],
+    positions(1),
+    positions(2),
+    positions(3)
+  ];
+
+  // residues
+  local i, res_names, res_ids, res_types, res_natom = 0, res_natoms, cur_resi = resis(1) - 1;
+  for i = 1, data.natoms loop
+    local resi = resis(i);
+    if cur_resi <> resi then
+      local resn = resns(i);
+      cur_resi = resi;
+      res_names = append[res_names, resn];
+      res_ids = append[res_ids, resi];
+
+      local res_type = 'none';
+      if add (AMINO_ACIDS == resn) then
+        res_type = 'amino';
+      endif
+      res_types = append[res_types, res_type];
+
+      res_natoms = append[res_natoms, res_natom];
+      res_natom = 0;
+    endif
+    res_natom = res_natom + 1;
+  endloop
+
+  res_natoms = append[res_natoms, res_natom];
+  res_natoms = drop [res_natoms, 1];
+
+  local residues = [
+    res_names,
+    res_ids,
+    rep [" ", length res_names], // insertion codes
+    res_types,
+    res_natoms
+  ];
+
+  // chains
+  local components = graph_ccomponent xbond;
+  local chain_nress, chain_nres = 0, cur_comp = components(1);
+  local res_name = '';
+
+  for i = 1, length res_natoms loop
+    res_natom = res_natoms(i);
+
+    local component = get [keep [components, res_natom], 1];
+    components = drop [components, res_natom];
+    if cur_comp <> component and res_name <> 'HOH' then
+      chain_nress = append[chain_nress, chain_nres];
+      chain_nres = 0;
+      cur_comp = component;
+    endif
+
+    res_name = res_names(i);
+    chain_nres = chain_nres + 1;
+  endloop
+
+  chain_nress = append[chain_nress, chain_nres];
+
+  local chains = [
+    rep ['*', length chain_nress], // name
+    rep ['*', length chain_nress], // tag token
+    rep ['', length chain_nress], // header
+    chain_nress
+  ];
+
+  return [chains, residues, atoms];
+endfunction
+
+function fread_cpf filename
+  local file = fopenr filename;
+  local data = fparse_cpf file;
+  fclose file;
+
+  local basename = fbase ftail filename;
+
+  local mol = cat [basename, convert_to_mol data];
+  local newChains = mol_CreateHidden mol;
+
+  local residues = cResidues newChains;
+
+  cSetTag [newChains, basename];
+  cSetHeader [newChains, tok_cat['CPF:', filename]];
+  rSetRibbonMode [residues, 'auto'];
+endfunction
+
+function ReadCPF [filename, options]
+  local newchains;
+
+  [filename, [], options] = Read_Prompt [filename, 'CPF', options];
+  local file = fopenr [filename];
+  local data = fparse_cpf file;
+  fclose file;
+
+  Read_ProcessStandardOptions [newchains, options];
+
+  return Read_Return [newchains, call[]];
+endfunction
+
+function TestParser []
+  return fread_cpf '$HOME/Desktop/with-HOH/1DFJ/complex.cpf';
+endfunction
