@@ -5,6 +5,8 @@ function Read_Return;
 function AutoConnectFromPosition;
 function AutoTypeFromPosition;
 
+function ViewCenter;
+
 
 local function freadlines [file, format, n];
   return cat apt get [apt sread[freadb[file, 'line', n], format], 1];
@@ -193,6 +195,8 @@ function fread_cpf filename
   cSetTag [newChains, basename];
   cSetHeader [newChains, tok_cat['CPF:', filename]];
   rSetRibbonMode [residues, 'auto'];
+  
+  return [newChains, data];
 endfunction
 
 function ReadCPF [filename, options]
@@ -208,6 +212,93 @@ function ReadCPF [filename, options]
   return Read_Return [newchains, call[]];
 endfunction
 
-function TestParser []
-  return fread_cpf '$HOME/Desktop/with-HOH/1DFJ/complex.cpf';
+const FMOViewer = [
+  name: 'FMOViewer',
+  title: 'FMO Viewer',
+  text: 'Delete and Close',
+  
+  Hbox: [
+    Button: [
+      name: 'SetLigand',
+      text: 'Set Ligand'
+    ],
+    Button: [
+      name: 'SelectLigand',
+      text: '?'
+    ]
+  ],
+  
+  Hbox: [
+    Label: [ text: 'min' ],
+    Scale: [
+      name: 'MinValue',
+      extendH: 1,
+      resizeH: 1,
+      range: [0, 100, 1],
+      onTrigger: 'return'
+    ],
+    Color: [
+      name: 'MinColor',
+      minWidth: 1,
+      onTrigger: 'return'
+    ]
+  ],
+  Hbox: [
+    Label: [ text: 'max' ],
+    Scale: [
+      name: 'MaxValue',
+      extendH: 1,
+      resizeH: 1,
+      range: [0, 100, 1],
+      onTrigger: 'return'
+    ],
+    Color: [
+      name: 'MaxColor',
+      minWidth: 1,
+      onTrigger: 'return'
+    ]
+  ]
+];
+
+function TestFMOViewer []
+  local cpf = FilePrompt [
+    title: 'choose CPF file',
+    mode: 'open',
+    filter: '*.cpf'
+  ];
+  
+  local [chains, data] = fread_cpf cpf;
+  local atomFragNumbers = apt get [data.atoms, 6];
+  local fragCounts = app add apt eqE [[atomFragNumbers], igen max atomFragNumbers];
+  local atomObjects = cat cAtoms chains;
+
+  local ligandFragments = [];
+  ViewCenter atomObjects;
+  
+  function SetLigand atoms
+    local frag, counts = igen data.nfrags == 0;
+    for frag in apt get [[atomFragNumbers], apt indexof [atoms, [atomObjects]]] loop
+      counts = poke [counts, frag, peek [counts, frag] + 1];
+    endloop
+     ligandFragments = igen data.nfrags | counts / fragCounts > 0.8;
+  endfunction
+  
+  SetLigand get [atomObjects, igen 39];
+  print ligandFragments;
+
+  local wkey = WindowCreate FMOViewer;
+  WindowSetData [wkey, [MinColor: 2847231, MaxColor: 15863053]];
+  WindowShow wkey;
+  
+  loop
+    local [values, trigger] = WindowWait wkey;
+
+    if trigger == 'OpenCPF' then
+    elseif trigger == 'FMOViewer' then
+      oDestroy chains;
+      return;
+    endif
+    
+    print trigger;
+  endloop
 endfunction
