@@ -339,15 +339,16 @@ local function AbinitPDBLine [i, atom]
   local rename = 0;
   if sec == 'HETATM' and length elem == 1 and length aname > 1 then
     if orE [
-      elem == "H" and orE (aname(2) == "efgsEFGS"),
-      elem == "B" and orE (aname(2) == "eraihkERAIHK"),
-      elem == "C" and orE (aname(2) == "laroudsnmfLAROUDSNMF"),
+      elem == "H" and orE (aname(2) == "eofgsEOFGS"),
+      elem == "B" and orE (aname(2) == "eraikhERAIKH"),
+      elem == "C" and orE (aname(2) == "laroudsemfnLAROUDSEMFN"),
       elem == "N" and orE (aname(2) == "eaibdpoEAIBDPO"),
       elem == "O" and orE (aname(2) == "sS"),
       elem == "F" and orE (aname(2) == "erlmERLM"),
-      elem == "P" and orE (aname(2) == "dtbormauDTBORMAU"),
-      elem == "S" and orE (aname(2) == "icernbgmICERNBGM"),
+      elem == "P" and orE (aname(2) == "drmtboauDRMTBOAU"),
+      elem == "S" and orE (aname(2) == "icernbmgICERNBMG"),
       elem == "K" and orE (aname(2) == "rR"),
+      elem == "Y" and orE (aname(2) == "bB"),
       elem == "I" and orE (aname(2) == "nrNR")
     ] then
       rename = 1;
