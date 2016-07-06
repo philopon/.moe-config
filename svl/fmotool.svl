@@ -62,7 +62,7 @@ local function ToDetachedBondString [i, bond]
 
   local resName;
   if bdaRes <> baaRes then
-    resName = tok_cat [rNumber bdaRes, '->', rNumber baaRes];
+    resName = tok_cat [rName bdaRes, totok rNumber bdaRes, '->', rName baaRes, totok rNumber baaRes];
   else
     resName = tok_cat [rName bdaRes, totok rNumber bdaRes];
   endif
@@ -713,6 +713,8 @@ global function FMOInterface []
 
       local template = fcat[TEMPLATE_BASE, tok_cat[vals.TemplateSelector, '.ajf']];
       FMOWriteFiles [output(1), template, Atoms[], *detachedBonds, output(2)];
+      Warning 'Write done!';
+
     endif
 
   endloop
