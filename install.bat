@@ -1,15 +1,10 @@
 @echo off
 setlocal
 
-set DEST="%UserProfile%\.moe-config\"
+set DEST="%UserProfile%\.moe-config"
 
-if exist %DEST% (
-    cd %DEST%
-    git pull
-) else (
-    cd %UserProfile%
-    git clone "https://github.com/philopon/.moe-config.git"
-)
+cd %DEST%
+git pull
 
 cd %UserProfile%
 
@@ -23,4 +18,4 @@ if defined AUTOPREP (
 
 mklink /H .moe-menus %MOE_MENUS%
 
-set /p dummy="done!"
+pause
