@@ -62,9 +62,9 @@ local function ToDetachedBondString [i, bond]
 
   local resName;
   if bdaRes <> baaRes then
-    resName = tok_cat [rName bdaRes, totok rNumber bdaRes, '->', rName baaRes, totok rNumber baaRes];
+    resName = tok_cat [rName bdaRes, totok rUID bdaRes, '->', rName baaRes, totok rUID baaRes];
   else
-    resName = tok_cat [rName bdaRes, totok rNumber bdaRes];
+    resName = tok_cat [rName bdaRes, totok rUID bdaRes];
   endif
 
   return twrite['{}\t{}\t{}\t{} {}\t{} {}',
@@ -388,7 +388,7 @@ local function AbinitPDBLine [i, atom]
   return swrite [
     '{t:-6}{n:5} {t:-4} {t:3} {}{n:4}{}   {f8.3}{f8.3}{f8.3}{f6.2}{f6.2}          {t:2}{t:2} {}',
     sec, i, token aname, rName res,
-    chainId, rNumber res, rINS res, x, y, z,
+    chainId, rUID res, rINS res, x, y, z,
     aOccupancy atom, aTempFactor atom, aElement atom, charge, annot
   ];
 endfunction
