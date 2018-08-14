@@ -1,4 +1,4 @@
-const TEMPLATE_BASE = '$HOME/.moe-config/dat';
+const TEMPLATE_BASE = '$HOME/moefiles/fmotool';
 
 local function G_DetachMarker [color, bda, baa]
     local posD = aPos bda;
